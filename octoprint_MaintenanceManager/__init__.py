@@ -19,16 +19,11 @@ class MaintenanceManagerPlugin(
     octoprint.plugin.TemplatePlugin,
     octoprint.plugin.EventHandlerPlugin,
 ):
-
-
     def is_template_autoescaped(self):
         return True
 
     def __init__(self):
         self.mqtt_publish = lambda *args, **kwargs: None
-        self.mqtt_subscribe = lambda *args, **kwargs: None
-        self.mqtt_unsubscribe = lambda *args, **kwargs: None
-
         self.mqtt_helper = None  # Initialize the attribute
 
     def initialize(self):
@@ -40,9 +35,11 @@ class MaintenanceManagerPlugin(
         self._logger.info(
             "************************************ MaintenanceManager starting ************************************"
         )
+        self._logger.info(
+            "MaintenanceManager topic: %s" % self._settings.get(["mqttTopic"])
+        )
 
         self.mqtt_helper = self._plugin_manager.get_helpers("mqtt", "mqtt_publish")
-
         self.tracking_service = TrackingService(self)
 
     def update_maintenance_stats(
@@ -56,7 +53,7 @@ class MaintenanceManagerPlugin(
     ):
         # Your existing MQTT publishing logic here
         if self.mqtt_helper:
-            topic = "viktak/test/octoPrint/plugin/MaintenanceManager"
+            topic = self._settings.get(["mqttTopic"])
             payload = {
                 "tracking_started_datetime": trackingStartedDateTime.strftime(
                     "%B %d, %Y at %H:%M"
@@ -105,13 +102,16 @@ class MaintenanceManagerPlugin(
 
     ##~~ SettingsPlugin mixin
     def get_settings_defaults(self):
-        return dict(installed_version=self._plugin_version)
+        return dict(
+            installed_version=self._plugin_version,
+            mqttTopic="octoPrint/plugin/MaintenanceManager",  
+        )
 
-    ##~~ TemplatePlugin mixin
+    ## ~~ TemplatePlugin mixin
     def get_template_configs(self):
         return [
-            dict(type="tab", name="Maintenance Manager"),
-            dict(type="settings", custom_bindings=True, name="Maintenance Manager"),
+            dict(type="navbar", custom_bindings=False),
+            dict(type="settings", custom_bindings=False),
         ]
 
     ##~~ AssetPlugin mixin
@@ -158,6 +158,15 @@ class MaintenanceManagerPlugin(
                 pip="https://github.com/OllisGit/OctoPrint-MaintenanceManager/releases/download/{target_version}/master.zip",
             )
         )
+
+    # def on_settings_save(self, data):
+    #     old_mqttTopic = self._settings.get(["mqttTopic"])
+
+    #     octoprint.plugin.SettingsPlugin.on_settings_save(self, data)
+
+    #     new_mqttTopic = self._settings.get(["mqttTopic"])
+
+    #     self._logger.info("MaintenanceManager settings saved.")
 
 
 # If you want your plugin to be registered within OctoPrint under a different name than what you defined in setup.py
