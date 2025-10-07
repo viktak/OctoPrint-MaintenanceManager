@@ -19,6 +19,11 @@ class MaintenanceManagerPlugin(
     octoprint.plugin.TemplatePlugin,
     octoprint.plugin.EventHandlerPlugin,
 ):
+
+
+    def is_template_autoescaped(self):
+        return True
+
     def __init__(self):
         self.mqtt_publish = lambda *args, **kwargs: None
         self.mqtt_subscribe = lambda *args, **kwargs: None
