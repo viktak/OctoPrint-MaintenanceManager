@@ -15,8 +15,7 @@ from octoprint_MaintenanceManager.utils.odometer import Vector3D
 from octoprint.util import RepeatedTimer
 
 
-class TrackingService():
-
+class TrackingService:
     STORAGE_TIMER_INTERVAL = 1.0
 
     STORAGE_FILENAME = "trackingValues.json"
@@ -25,7 +24,7 @@ class TrackingService():
     TRACKING_STATE_TRACKING = "tracking"
     TRACKING_STATE_PAUSE = "pause"
 
-    def __init__(self):
+    def __init__(self, plugin_reference):
         self.currentTrackingState = self.TRACKING_STATE_STOPPED
         self.trackingStartedDateTime = None
         self.startTime = None
@@ -37,16 +36,21 @@ class TrackingService():
         self.extrusionTraveling = None
 
         self._isInitiallized = False
+
+        self.maintenance_manager = plugin_reference
+
         pass
 
-    def initialize(self, pluinDataFolder, logger = None):
+    def initialize(self, pluinDataFolder, logger=None):
         self.pluginDataFolder = pluinDataFolder
 
         self._loadInitialValues()
-        self.odometer = Odometer(totalAxisTraveling=self.axisTraveling,
-                                 totalExtrusionTraveleing=self.extrusionTraveling)
+        self.odometer = Odometer(
+            totalAxisTraveling=self.axisTraveling,
+            totalExtrusionTraveleing=self.extrusionTraveling,
+        )
 
-        if (self.trackingStartedDateTime == None):
+        if self.trackingStartedDateTime == None:
             self.trackingStartedDateTime = datetime.now()
             self._saveCurrentValues()
 
@@ -61,44 +65,48 @@ class TrackingService():
         pass
 
     def _initStorageTimer(self):
-        storageTimer = RepeatedTimer(self.STORAGE_TIMER_INTERVAL, self._storageTimerFunction)
+        storageTimer = RepeatedTimer(
+            self.STORAGE_TIMER_INTERVAL, self._storageTimerFunction
+        )
         storageTimer.start()
 
     def _loadInitialValues(self):
         result = {}
         try:
-            storageFileLocation = os.path.join(self.pluginDataFolder, self.STORAGE_FILENAME)
+            storageFileLocation = os.path.join(
+                self.pluginDataFolder, self.STORAGE_FILENAME
+            )
             f = open(storageFileLocation, "rt")
             dictAsJson = json.load(f)
             result = dictAsJson
 
             # assign last values
             dateTimeStr = result["trackingStartedDateTime"]
-            if (dateTimeStr != None):
-                self.trackingStartedDateTime = datetime.strptime(dateTimeStr, "%Y-%m-%d %H:%M:%S.%f")
+            if dateTimeStr != None:
+                self.trackingStartedDateTime = datetime.strptime(
+                    dateTimeStr, "%Y-%m-%d %H:%M:%S.%f"
+                )
 
             self.totalDuration = result["totalDuration"]
-            if ("axisTraveling.x" in result):
+            if "axisTraveling.x" in result:
                 x = result["axisTraveling.x"]
                 y = result["axisTraveling.y"]
                 z = result["axisTraveling.z"]
 
-                self.axisTraveling = Vector3D(x,y,z)
+                self.axisTraveling = Vector3D(x, y, z)
 
             self.extrusionTraveling = result["extrusionTraveling"]
 
         except Exception as e:
             # Firsttime we expect FileNotFoundError
-            if (type(e) != FileNotFoundError):
+            if type(e) != FileNotFoundError:
                 print("BOOOOOMMMM")
                 print(e)
 
-
     def _saveCurrentValues(self):
-
         currentTotalDuration = self.getCurrentTotalDuration()
         axisTraveling = self.getAxisTraveling()
-        extrusionTraveling =  self.getExtrusionTraveling()
+        extrusionTraveling = self.getExtrusionTraveling()
 
         axis = Vector3D(1.0, 2.0, 3.0)
         valuesAsDict = {
@@ -107,7 +115,7 @@ class TrackingService():
             "axisTraveling.x": axisTraveling.x,
             "axisTraveling.y": axisTraveling.y,
             "axisTraveling.z": axisTraveling.z,
-            "extrusionTraveling": extrusionTraveling
+            "extrusionTraveling": extrusionTraveling,
         }
         dictAsJson = json.dumps(valuesAsDict, indent=4, default=str)
 
@@ -116,13 +124,27 @@ class TrackingService():
         f.write(dictAsJson)
         f.close()
 
+        self.maintenance_manager.update_maintenance_stats(
+            self.totalDuration,
+            axisTraveling.x,
+            axisTraveling.y,
+            axisTraveling.z,
+            extrusionTraveling,
+            self.trackingStartedDateTime,
+        )
+
         pass
 
     def startTracking(self):
-        if (self._isInitiallized == False or self.pluginDataFolder == None):
-            raise AssertionError("Before you start, you need to call 'initialize' and assign a pluginDataFolder")
-        if (self.currentTrackingState != self.TRACKING_STATE_STOPPED):
-            raise AssertionError("Start Tracking not possible, because tracking is currently not stopped. Current state: "+self.currentTrackingState)
+        if self._isInitiallized == False or self.pluginDataFolder == None:
+            raise AssertionError(
+                "Before you start, you need to call 'initialize' and assign a pluginDataFolder"
+            )
+        if self.currentTrackingState != self.TRACKING_STATE_STOPPED:
+            raise AssertionError(
+                "Start Tracking not possible, because tracking is currently not stopped. Current state: "
+                + self.currentTrackingState
+            )
         print("Start Tracking ")
 
         self.currentTrackingState = self.TRACKING_STATE_TRACKING
@@ -130,8 +152,11 @@ class TrackingService():
         pass
 
     def pauseTracking(self):
-        if (self.currentTrackingState != self.TRACKING_STATE_TRACKING):
-            raise AssertionError("Pause Tracking not possible, because tracking is currently not tracking. Current state: "+self.currentTrackingState)
+        if self.currentTrackingState != self.TRACKING_STATE_TRACKING:
+            raise AssertionError(
+                "Pause Tracking not possible, because tracking is currently not tracking. Current state: "
+                + self.currentTrackingState
+            )
         print("Pause Tracking ")
         self.currentTrackingState = self.TRACKING_STATE_PAUSE
 
@@ -144,8 +169,11 @@ class TrackingService():
         self._saveCurrentValues()
 
     def resumeTracking(self):
-        if (self.currentTrackingState != self.TRACKING_STATE_PAUSE):
-            raise AssertionError("Resume Tracking not possible, because tracking is currently not paused. Current state: "+self.currentTrackingState)
+        if self.currentTrackingState != self.TRACKING_STATE_PAUSE:
+            raise AssertionError(
+                "Resume Tracking not possible, because tracking is currently not paused. Current state: "
+                + self.currentTrackingState
+            )
         print("Resume Tracking ")
         self.currentTrackingState = self.TRACKING_STATE_TRACKING
         self.startTime = now()
@@ -156,15 +184,15 @@ class TrackingService():
         print("Stop Tracking ")
         self.currentTrackingState = self.TRACKING_STATE_STOPPED
 
-        if (self.currentTrackingState != self.TRACKING_STATE_PAUSE):
+        if self.currentTrackingState != self.TRACKING_STATE_PAUSE:
             nowTime = int(now())
             startTime = int(self.startTime)
-            currentDuration = (nowTime - startTime)
+            currentDuration = nowTime - startTime
             self.totalDuration = self.totalDuration + currentDuration
 
         self._saveCurrentValues()
 
-    def processGCodeLine(self, gcodeLine:str):
+    def processGCodeLine(self, gcodeLine: str):
         # if (self.currentTrackingState != self.TRACKING_STATE_TRACKING):
         #     raise AssertionError("Process Tracking not possible, because tracking is currently not tracking. Current state: "+self.currentTrackingState)
         # print("Process Tracking ")
@@ -174,15 +202,17 @@ class TrackingService():
     def getTrackingSince(self):
         return self.trackingStartedDateTime
 
-     # Get the totalDuration of this tracking. Can be called after pause or stop, NOT in betweeen. Use getCurrentTotalDuration if you need it in between.
+    # Get the totalDuration of this tracking. Can be called after pause or stop, NOT in betweeen. Use getCurrentTotalDuration if you need it in between.
     def getTotalDuration(self):
         return self.totalDuration
 
     # Calculates the currentTotalDuration
     def getCurrentTotalDuration(self):
-        if (self.currentTrackingState == self.TRACKING_STATE_PAUSE or
-            self.currentTrackingState ==self.TRACKING_STATE_STOPPED or
-            self.startTime == None):
+        if (
+            self.currentTrackingState == self.TRACKING_STATE_PAUSE
+            or self.currentTrackingState == self.TRACKING_STATE_STOPPED
+            or self.startTime == None
+        ):
             return self.totalDuration
 
         return self._calcTotalDuration()
@@ -196,13 +226,11 @@ class TrackingService():
     def _calcTotalDuration(self):
         nowTime = int(now())
         startTime = int(self.startTime)
-        currentDuration = (nowTime - startTime)
+        currentDuration = nowTime - startTime
         return self.totalDuration + currentDuration
 
 
 if __name__ == "__main__":
-
-
     service = TrackingService()
     service.initialize(".")
 
@@ -220,7 +248,9 @@ if __name__ == "__main__":
     # time.sleep(4)
 
     print("*************")
-    print("Final Total-Duration: " + StringUtils.secondsToText(service.getTotalDuration()))
+    print(
+        "Final Total-Duration: " + StringUtils.secondsToText(service.getTotalDuration())
+    )
 
     print("Axis-Traveling: " + str(service.getAxisTraveling()))
     print("Extrusion-Traveling: " + str(service.getExtrusionTraveling()))
